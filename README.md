@@ -3,7 +3,8 @@
 A battery-friendly departure board for public transport in the Zurich area, built on the
 Waveshare **ESP32-S3-RLCD-4.2** board. The device fetches live departures for a configured
 station (currently *Glattpark*) and renders them on a reflective LCD, which needs no
-backlight and keeps its image with no power applied.
+backlight. The panel is not bistable: it does not keep its image with no power applied,
+it simply needs very little power to hold one.
 
 ![Departure display running on the ESP32-S3-RLCD-4.2 board](doc/departure_display_running.jpg)
 
@@ -60,7 +61,9 @@ The firmware is tuned for long battery life:
   which are set in `sdkconfig.defaults`; without them IDF links the whole `esp_pm` API as
   no-op stubs and the device would run at a fixed 160 MHz.
 - The panel is switched to LPM (1 Hz self-refresh, command `0x39`) after each frame, so a
-  static image is held at roughly 1/32 of the high-power (32 Hz) refresh energy.
+  static image is held at roughly 1/32 of the high-power (32 Hz) refresh energy. The image
+  still requires the panel to be powered and self-refreshing; it is lost if the supply is
+  removed.
 - WiFi TX power is capped at 10 dBm instead of the 20 dBm default.
 - The WiFi station is stopped after every fetch and brought back up on the next refresh.
   Modem sleep (`WIFI_PS_MAX_MODEM`) is asserted per association and cleared in `wifi_stop()`,

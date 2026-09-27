@@ -53,7 +53,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
 void wifi_stop(void)
 {
     // Tear the station down between refreshes: the association is the dominant
-    // idle cost, and the RLCD keeps its image without power.
+    // idle cost, and the RLCD needs very little power to hold its image.
     wifi_connected = false;
     wifi_suppressed = true;
     // Drop modem sleep before releasing the driver. WIFI_PS_MAX_MODEM makes the
