@@ -56,11 +56,15 @@ The panel is driven over SPI3 at 24 MHz in `U8G2_R1` rotation.
 The firmware is tuned for long battery life:
 
 - Dynamic frequency scaling between 40 MHz and 160 MHz, with automatic light sleep
-  (`main/power.cpp`).
+  (`main/power.cpp`). This requires `CONFIG_PM_ENABLE` and `CONFIG_FREERTOS_USE_TICKLESS_IDLE`,
+  which are set in `sdkconfig.defaults`; without them IDF links the whole `esp_pm` API as
+  no-op stubs and the device would run at a fixed 160 MHz.
 - The panel is switched to LPM (1 Hz self-refresh, command `0x39`) after each frame, so a
   static image is held at roughly 1/32 of the high-power (32 Hz) refresh energy.
 - WiFi TX power is capped at 10 dBm instead of the 20 dBm default.
 - The WiFi station is stopped after every fetch and brought back up on the next refresh.
+  Modem sleep (`WIFI_PS_MAX_MODEM`) is asserted per association and cleared in `wifi_stop()`,
+  because it holds `ESP_PM_APB_FREQ_MAX` and would otherwise pin the clock at maximum.
 - Bluetooth/WiFi/MDNS/other components are trimmed out via `sdkconfig`.
 
 ### Source layout
@@ -75,6 +79,8 @@ main/
   power.cpp            DFS / light-sleep configuration
   user_config.h        pins, log level, power tuning knobs
   app_shared.h         shared structs and extern declarations
+  secrets.h            WiFi credentials (git-ignored, local only)
+  secrets.h.example    template for secrets.h with placeholder values
 components/
   u8g2_st7305/         ST7305 SPI panel driver plus u8g2 glue
   port_bsp/            raw display port helper (portrait/landscape pixel writes)
@@ -93,11 +99,34 @@ Or use the provided dev container, which ships the ESP-IDF toolchain and QEMU.
 
 ## Configuration
 
-Edit the constants at the top of `main/main.cpp`:
+### Credentials
+
+WiFi credentials and site-specific values are kept out of the repository. Create your
+local file from the committed template:
+
+```bash
+cp main/secrets.h.example main/secrets.h
+```
+
+Then fill in the placeholders in `main/secrets.h`:
 
 ```c
-const char *WIFI_SSID   = "...";
-const char *WIFI_PASS   = "...";
+#define WIFI_SSID_VALUE "your-wifi-ssid"
+#define WIFI_PASS_VALUE "your-wifi-password"
+/* Fallback clock offset until the API supplies the real one from its ISO timestamps. */
+#define TIMEZONE_OFFSET_SECONDS (2 * 3600)
+```
+
+`main/secrets.h` is listed in `.gitignore` and must never be committed;
+`main/secrets.h.example` holds the dummy values and is tracked instead. The build fails
+with a missing-header error if `main/secrets.h` has not been created yet.
+
+### Other settings
+
+The station and API endpoint are compiled into `main/main.cpp`:
+
+```c
+const char *API_URL = "http://transport.opendata.ch/v1/stationboard";
 const char *STATION_NAME = "Glattpark";
 ```
 

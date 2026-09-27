@@ -1,0 +1,78 @@
+# ---------------------------------------------------------------------------
+# ESP-IDF build output
+# ---------------------------------------------------------------------------
+build/
+managed_components/
+dependencies.lock
+
+# CMake / build system artefacts
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+*.ninja
+.ninja_deps
+.ninja_log
+
+# ---------------------------------------------------------------------------
+# ESP-IDF generated configuration and binaries
+# ---------------------------------------------------------------------------
+# sdkconfig is regenerated from sdkconfig.defaults by idf.py; .old is idf.py's
+# automatic backup of the previous revision.
+sdkconfig
+sdkconfig.old
+*.bin
+*.elf
+*.map
+bootloader/
+partition_table/
+flash_args
+flasher_args.json
+flash_project_args
+project_description.json
+
+# ---------------------------------------------------------------------------
+# Editor / IDE state
+# ---------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*~
+.cache/
+.clangd/
+
+# ---------------------------------------------------------------------------
+# Host tools and scratch files
+# ---------------------------------------------------------------------------
+# Local diagnostics and captured serial output
+output.txt
+logs/
+*.log
+
+# Files with a "copy"/"backup"/"old" suffix are local duplicates
+*[Cc]opy*.*
+*bak
+*.tmp
+
+# ---------------------------------------------------------------------------
+# Third-party reference material
+# ---------------------------------------------------------------------------
+# The vendor board support package, including its own nested Git checkout.
+# Provided upstream:
+#   https://github.com/waveshareteam/ESP32-S3-RLCD-4.2
+ESP32-S3-RLCD-4.2/
+
+# ---------------------------------------------------------------------------
+# Secrets / site configuration
+# ---------------------------------------------------------------------------
+# Real credentials live in main/secrets.h; the committed template is
+# main/secrets.h.example. Never commit the populated file.
+main/secrets.h
+secrets.h
+
+# ---------------------------------------------------------------------------
+# OS cruft
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini

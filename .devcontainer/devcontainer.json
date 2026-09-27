@@ -1,0 +1,52 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
+// https://github.com/microsoft/vscode-dev-containers/tree/v0.183.0/containers/ubuntu
+{
+	"name": "ESP-IDF QEMU",
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"customizations": {
+		"vscode": {
+			"settings": {
+				"terminal.integrated.defaultProfile.linux": "bash",
+				"idf.espIdfPath": "/opt/esp/idf",
+				"idf.customExtraPaths": "",
+				"idf.pythonBinPath": "/opt/esp/python_env/idf5.4_py3.12_env/bin/python",
+				"idf.toolsPath": "/opt/esp",
+				"idf.gitPath": "/usr/bin/git"
+			},
+			"extensions": [
+				"espressif.esp-idf-extension",
+				"ms-vscode.cpptools",
+				"mhutchie.git-graph",
+				"VerdentAI.verdent"
+			]
+		},
+		"codespaces": {
+			"settings": {
+				"terminal.integrated.defaultProfile.linux": "bash",
+				"idf.espIdfPath": "/opt/esp/idf",
+				"idf.customExtraPaths": "",
+				"idf.pythonBinPath": "/opt/esp/python_env/idf5.4_py3.12_env/bin/python",
+				"idf.toolsPath": "/opt/esp",
+				"idf.gitPath": "/usr/bin/git"
+			},
+			"extensions": [
+				"espressif.esp-idf-extension"
+			]
+		}
+	},
+	// --privileged is required for the ESP32-S3 USB-serial/JTAG passthrough.
+	// The explicit --device entries cover both common USB bridges (CP210x/CH34x
+	// -> ttyUSB*, native USB-serial-JTAG -> ttyACM*) so flashing also works when
+	// privileged mode is unavailable, e.g. on Codespaces or a locked-down host.
+	"runArgs": [
+		"--privileged",
+		"--device=/dev/ttyUSB0",
+		"--device=/dev/ttyACM0",
+		"--group-add=dialout"
+	],
+	"mounts": [
+		"type=bind,source=${localEnv:HOME}/.ssh,target=/home/ubuntu/.ssh"
+	]
+}

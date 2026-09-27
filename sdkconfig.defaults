@@ -1,0 +1,34 @@
+# This file was generated using idf.py save-defconfig. It can be edited manually.
+# Espressif IoT Development Framework (ESP-IDF) Project Minimal Configuration
+#
+CONFIG_IDF_TARGET="esp32s3"
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_HTTPD_MAX_REQ_HDR_LEN=512
+# PSRAM is disabled: an idling 80 MHz octal PSRAM interface costs several mA and
+# nothing here needs it (the only allocation is the 15 KB display framebuffer,
+# which fits internal RAM).
+CONFIG_SPIRAM=n
+CONFIG_FATFS_LFN_HEAP=y
+CONFIG_FREERTOS_HZ=1000
+
+# Power management. CONFIG_PM_ENABLE is the master switch for the whole esp_pm
+# subsystem: without it light sleep is not compiled in at all and every esp_pm_*
+# call is linked as a no-op stub returning ESP_OK, so configure_power_management()
+# silently stops doing anything. Tickless idle is what turns the display task's
+# multi-second vTaskDelay() between refreshes into a real light sleep instead of a
+# busy spin at full clock.
+CONFIG_PM_ENABLE=y
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
+# Keep the CPU powered down during light sleep; the RLCD holds its image with no
+# power applied, so nothing needs the CPU domain alive between refreshes.
+CONFIG_PM_POWER_DOWN_CPU_IN_LIGHT_SLEEP=y
+# Cut the VDD_SPI regulator rail to the flash for the multi-second sleep between
+# refreshes. Without this the rail stays powered and the flash sits in active
+# standby (CS held high by ESP_SLEEP_FLASH_LEAKAGE_WORKAROUND), costing roughly
+# 1.5-2.5 mA; gating the rail is what actually removes that. This uses the
+# regulator rather than a 0xB9 flash command, so it does not depend on the fitted
+# flash supporting deep power-down. ESP_SLEEP_SET_FLASH_DPD is the lighter
+# alternative (~10 uA) and is mutually exclusive with this option.
+CONFIG_ESP_SLEEP_POWER_DOWN_FLASH=y
