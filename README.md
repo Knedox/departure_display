@@ -4,7 +4,8 @@ A battery-friendly departure board for public transport in the Zurich area, buil
 Waveshare **ESP32-S3-RLCD-4.2** board. The device fetches live departures for a configured
 station (currently *Glattpark*) and renders them on a reflective LCD, which needs no
 backlight. The panel is not bistable: it does not keep its image with no power applied,
-it simply needs very little power to hold one.
+it simply needs very little power to hold one. The whole device draws roughly 10 mW, which
+lets a single battery charge last about a month.
 
 ![Departure display running on the ESP32-S3-RLCD-4.2 board](doc/departure_display_running.jpg)
 
@@ -28,7 +29,9 @@ it simply needs very little power to hold one.
 | Display | 4.2" reflective LCD (RLCD), 400x300 px, ST7305 controller, SPI |
 | Flash | 16 MB, QIO |
 | PSRAM | Disabled on purpose - an idle 80 MHz octal PSRAM interface costs several mA and the only large allocation (the ~15 KB framebuffer) fits internal RAM |
+| Regulator | TI TPS63020 buck-boost; its PS/SYNC pin must be pulled low for low-power mode (see below) |
 | Battery sense | On-board battery divider on GPIO4 / ADC1 channel 3 (3.0 V = empty, 4.12 V = full) |
+| Power draw | ~10 mW, giving roughly one month of runtime per battery charge |
 
 ### Display wiring
 
@@ -43,6 +46,17 @@ Configured in `main/user_config.h`:
 | RST | 41 |
 
 The panel is driven over SPI3 at 24 MHz in `U8G2_R1` rotation.
+
+### Low-power regulator requirement
+
+The ~10 mW figure above depends on the TPS63020 running in power-save mode. Its
+`PS/SYNC` pin selects between forced fixed-frequency PWM (high, the board default) and
+power-save mode (low), which skips switching cycles at light load. Left high, the
+converter burns considerably more than the rest of the system at idle and the month of
+runtime is not reachable.
+
+To get low-power mode, cut the trace tying `PS/SYNC` to its pull-up and tie the pin to
+ground. This is a hardware modification to the board and cannot be done from firmware.
 
 ## Software
 
