@@ -130,9 +130,10 @@ Then fill in the placeholders in `main/secrets.h`:
 ```c
 #define WIFI_SSID_VALUE "your-wifi-ssid"
 #define WIFI_PASS_VALUE "your-wifi-password"
-/* Fallback clock offset until the API supplies the real one from its ISO timestamps. */
-#define TIMEZONE_OFFSET_SECONDS (2 * 3600)
 ```
+
+The clock needs no timezone configuration: the offset is taken from the ISO
+timestamps of each API response, so DST changes are picked up automatically.
 
 `main/secrets.h` is listed in `.gitignore` and must never be committed;
 `main/secrets.h.example` holds the dummy values and is tracked instead. The build fails
