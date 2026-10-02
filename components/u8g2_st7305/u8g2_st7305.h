@@ -43,11 +43,19 @@ typedef struct {
     size_t buffer_size;
     uint8_t tile_buf_height;
     bool owns_spi_bus;
+    /* Packed frame in panel order for the single 0x2C push; see DRAW_TILE. */
+    uint8_t *frame_buf;
+    size_t frame_buf_size;
+    /* Tiles packed since the last flush; the 50th triggers the transfer. */
+    uint8_t tile_rows_seen;
 } u8g2_st7305_t;
 
 u8g2_st7305_config_t u8g2_st7305_default_config(void);
 esp_err_t u8g2_st7305_init(u8g2_st7305_t *dev, const u8g2_st7305_config_t *config);
 void u8g2_st7305_deinit(u8g2_st7305_t *dev);
+
+/* Bytes in one packed frame: 300x400 px at 8 px/byte. */
+#define ST7305_FULL_FRAME_BYTES 15000
 
 /* Panel refresh-rate mode.
  *
