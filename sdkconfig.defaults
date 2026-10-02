@@ -6,6 +6,15 @@ CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_HTTPD_MAX_REQ_HDR_LEN=512
+
+# Optimise for speed rather than debug. The default (COMPILER_OPTIMIZATION_DEBUG)
+# builds with -Og, which is only appropriate when stepping through the app in a
+# debugger. The frame packing loop in the display driver is the largest single
+# cost in a refresh (~5.6 ms against ~3.2 ms for the SPI transfer and ~0.09 ms
+# for u8g2's drawing), and it is a tight byte-packing loop with no library
+# calls - exactly the code -Og declines to optimise. PERF also keeps -g, so
+# symbols and core dumps are still available if something does need debugging.
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
 # PSRAM is disabled: an idling 80 MHz octal PSRAM interface costs several mA and
 # nothing here needs it (the only allocation is the 15 KB display framebuffer,
 # which fits internal RAM).

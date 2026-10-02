@@ -13,17 +13,12 @@
  * current with it enabled; see power.cpp. */
 #define RLCD_USE_LIGHT_SLEEP 0
 
-/* Runtime text log level, applied in app_main(). The per-frame INFO chatter
- * (several lines per departure row on every refresh) is suppressed at this
- * level, removing the UART traffic and its CPU cost from each wake. Raise to
- * ESP_LOG_INFO to get the detailed output back. */
+/* Runtime log level. WARN suppresses the per-frame INFO chatter and its UART
+ * and CPU cost; raise to ESP_LOG_INFO for detail. */
 #define RLCD_LOG_LEVEL ESP_LOG_WARN
 
-/* WiFi transmit power limit in quarter-dBm units, as expected by
- * esp_wifi_set_max_tx_power(). 40 = 10 dBm. The default is 20 dBm (80); the
- * board normally sits next to its access point, so the lower setting cuts the
- * current drawn by the power amplifier with no practical loss of range.
- * Raise towards 80 if the link is unreliable at distance. */
+/* WiFi TX power in quarter-dBm, as esp_wifi_set_max_tx_power() expects.
+ * 40 = 10 dBm, vs the 80 default. Raise towards 80 if the link is unreliable. */
 #define REDUCED_WIFI_TX_POWER_QUARTER_DBM 40
 
 #endif
