@@ -9,15 +9,9 @@
  * measured the same as 40 (divider rounding). Raise only with a scope on SCK. */
 #define RLCD_SPI_CLOCK_HZ 40000000
 
-/* ST7305 panel self-refresh mode.
- * 1: after each frame is written, switch the panel to LPM (0x39, 1 Hz
- *    self-refresh) so the static image is held at roughly 1/32 of the HPM
- *    refresh energy. The image is retained in frame memory, so it should look
- *    identical. The panel is switched back to HPM (0x38, 32 Hz) before the
- *    next frame is drawn.
- * 0: leave the panel in HPM permanently (previous behaviour).
- * Set to 0 to disable if the display shows artefacts after a refresh. */
-#define RLCD_USE_PANEL_LPM 1
+/* DFS + automatic light sleep. Off until there is a measurement of the idle
+ * current with it enabled; see power.cpp. */
+#define RLCD_USE_LIGHT_SLEEP 0
 
 /* Runtime text log level, applied in app_main(). The per-frame INFO chatter
  * (several lines per departure row on every refresh) is suppressed at this

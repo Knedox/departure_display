@@ -27,8 +27,6 @@ static void U8g2_Task(void *arg)
     while (true) {
         uint64_t now_us = esp_timer_get_time();
         U8g2_RefreshDisplayState(now_us);
-        /* Renders the frame and, with RLCD_USE_PANEL_LPM, leaves the panel in
-         * LPM holding the image. */
         U8g2_RenderDepartureFrame(u8g2);
         vTaskDelay(pdMS_TO_TICKS(DISPLAY_REFRESH_INTERVAL_SECONDS * 1000));
     }

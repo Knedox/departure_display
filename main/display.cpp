@@ -280,8 +280,16 @@ u8g2_t *U8g2_InitDisplayHandle(void)
     config.clock_hz = RLCD_SPI_CLOCK_HZ;
 
     ESP_LOGI(TAG, "Initializing u8g2 display");
-    ESP_ERROR_CHECK(u8g2_st7305_init(&g_u8g2_lcd, &config));
+    esp_err_t err = u8g2_st7305_init(&g_u8g2_lcd, &config);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "u8g2_st7305_init FAILED: %s", esp_err_to_name(err));
+        return nullptr;
+    }
     u8g2_t *u8g2 = u8g2_st7305_get_u8g2(&g_u8g2_lcd);
+    if (u8g2 == NULL) {
+        ESP_LOGE(TAG, "u8g2 handle is NULL after init");
+        return nullptr;
+    }
     ESP_LOGI(TAG, "u8g2 display initialized successfully");
 
     battery_adc_init();
@@ -315,13 +323,6 @@ void U8g2_RefreshDisplayState(uint64_t now_us)
 
 void U8g2_RenderDepartureFrame(u8g2_t *u8g2)
 {
-#if RLCD_USE_PANEL_LPM
-    /* The panel may be sitting in LPM (1 Hz) from the previous frame. Writes
-     * issued in LPM can be delayed by up to one refresh period, so return to
-     * HPM (32 Hz) before touching frame memory. */
-    u8g2_st7305_set_high_power_mode(&g_u8g2_lcd);
-#endif
-
     if (u8g2 == nullptr) {
         return;
     }
@@ -453,13 +454,4 @@ void U8g2_RenderDepartureFrame(u8g2_t *u8g2)
     ESP_LOGI(TAG, "Visible departures after filtering: %d", visible_rows);
     ESP_LOGI(TAG, "Sending buffer to display");
     u8g2_SendBuffer(u8g2);
-
-#if RLCD_USE_PANEL_LPM
-    /* Image is now in frame memory. Drop to LPM (1 Hz self-refresh): the RLCD
-     * holds the image with no backlight and the panel now re-drives it ~1/32
-     * as often. This happens after SendBuffer so the frame is never written
-     * while the panel is in the slow mode. */
-    u8g2_st7305_set_low_power_mode(&g_u8g2_lcd);
-    ESP_LOGI(TAG, "Panel switched to LPM (1 Hz self-refresh)");
-#endif
 }
