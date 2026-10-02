@@ -139,7 +139,9 @@ static void st7305_full_init(u8g2_st7305_t *dev)
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd_data(dev, 0xB7, b7, sizeof(b7)));
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd_data(dev, 0xB0, b0, sizeof(b0)));
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd(dev, 0x11));
-    vTaskDelay(pdMS_TO_TICKS(120));
+    /* 200 ms per the vendor reference (DisplayPort::RLCD_Init); several ST7305
+ * examples use 120 ms. */
+    vTaskDelay(pdMS_TO_TICKS(200));
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd_data(dev, 0xC9, c9, sizeof(c9)));
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd_data(dev, 0x36, m36, sizeof(m36)));
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd_data(dev, 0x3A, m3a, sizeof(m3a)));
