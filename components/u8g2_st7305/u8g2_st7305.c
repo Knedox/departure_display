@@ -318,6 +318,26 @@ esp_err_t u8g2_st7305_init(u8g2_st7305_t *dev, const u8g2_st7305_config_t *confi
         gpio_set_level(config->reset_io, 1);
     }
 
+    /* Keep the display bus driven through light sleep. PM_SLP_DISABLE_GPIO
+         * (forced by ESP_SLEEP_GPIO_RESET_WORKAROUND) otherwise floats every GPIO
+         * while asleep, and a glitch on RST can wedge the controller in a state
+         * a pin reset does not recover from - the charge-pump rails stay
+         * charged, so only removing power clears it. */
+    gpio_num_t sleep_pins[5] = {
+        config->dc_io, config->cs_io, config->mosi_io, config->sclk_io, config->reset_io
+    };
+    for (size_t i = 0; i < sizeof(sleep_pins) / sizeof(sleep_pins[0]); i++) {
+        if (sleep_pins[i] < 0) {
+            continue;
+        }
+        gpio_sleep_sel_dis(sleep_pins[i]);
+    }
+    gpio_sleep_set_pull_mode(config->cs_io, GPIO_PULLUP_ONLY);
+    gpio_sleep_set_pull_mode(config->dc_io, GPIO_PULLUP_ONLY);
+    if (config->reset_io >= 0) {
+        gpio_sleep_set_pull_mode(config->reset_io, GPIO_PULLUP_ONLY);
+    }
+
     spi_bus_config_t buscfg = {
         .mosi_io_num = config->mosi_io,
         .miso_io_num = -1,
