@@ -2,8 +2,8 @@
 
 #include <string.h>
 
-#include "esp_check.h"
 #include "driver/gpio.h"
+#include "esp_check.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_rom_sys.h"
@@ -154,6 +154,20 @@ static void st7305_full_init(u8g2_st7305_t *dev)
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd_data(dev, 0xD0, d0, sizeof(d0)));
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd(dev, 0x38));
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd(dev, 0x29));
+
+    /* LPM (0x39, 1 Hz). The image is rewritten only every 30 s, so a static
+     * frame gains nothing from HPM's 32 Hz and LPM holds it at ~1/32 of the
+     * refresh energy for the whole run.
+     *
+     * Datasheet 7.11 asks for more than this before entering LPM: re-program
+     * 0xC1/0xC2/0xC4/0xC5 with the LPM source voltages, issue 0xC9, wait 20 ms,
+     * send 0x39, wait 100 ms. The voltage table for LPM is panel-specific and
+     * is not available here, and the vendor reference (DisplayPort::RLCD_Init)
+     * does not perform the step at all - it ends 0x38, 0x29 and never uses LPM.
+     * So this runs with the HPM voltage set while in LPM mode, and without the
+     * 100 ms settling delay. Both are deliberate, and reversing either means
+     * sending 0x38 instead and restoring the voltage setup. */
+    ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd(dev, 0x39));
 }
 
 static uint8_t u8g2_st7305_byte_cb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
@@ -434,47 +448,6 @@ esp_err_t u8g2_st7305_init(u8g2_st7305_t *dev, const u8g2_st7305_config_t *confi
     u8g2_InitDisplay(&dev->u8g2);
     u8g2_SetPowerSave(&dev->u8g2, 0);
 
-    return ESP_OK;
-}
-
-/* Panel self-refresh mode switching.
- *
- * 0x38 = HPM (32 Hz), 0x39 = LPM (1 Hz). Frame memory and therefore the
- * visible image survive the switch. The datasheet's source-voltage-group step
- * is unnecessary here because the init sequence already programmed the
- * voltages this panel requires.
- *
- * After sending the LPM command the datasheet asks for a settling delay. None
- * is applied here: 0x39 only changes the panel's self-refresh rate, leaving
- * frame memory and the displayed image untouched, and the command is pushed out
- * synchronously by spi_device_polling_transmit() before this returns. Sleeping
- * here would keep the CPU awake for 10 ms after every frame for no benefit. */
-esp_err_t u8g2_st7305_set_low_power_mode(u8g2_st7305_t *dev)
-{
-    if (dev == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    }
-    esp_err_t err = st7305_write_cmd(dev, 0x39);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "LPM command 0x39 failed: %s", esp_err_to_name(err));
-        return err;
-    }
-    return ESP_OK;
-}
-
-esp_err_t u8g2_st7305_set_high_power_mode(u8g2_st7305_t *dev)
-{
-    if (dev == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    }
-    esp_err_t err = st7305_write_cmd(dev, 0x38);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "HPM command 0x38 failed: %s", esp_err_to_name(err));
-        return err;
-    }
-    /* 32 Hz refresh: ~31 ms per period. Give it one period plus margin so the
-     * first writes after switching are not dropped or delayed. */
-    vTaskDelay(pdMS_TO_TICKS(35));
     return ESP_OK;
 }
 

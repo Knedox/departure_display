@@ -57,27 +57,6 @@ void u8g2_st7305_deinit(u8g2_st7305_t *dev);
 /* Bytes in one packed frame: 300x400 px at 8 px/byte. */
 #define ST7305_FULL_FRAME_BYTES 15000
 
-/* Panel refresh-rate mode.
- *
- * The ST7305 has two self-refresh modes that differ only in how often the
- * panel re-drives its pixels:
- *   HPM (0x38) - high power mode,  32 Hz self-refresh. Required for writing.
- *   LPM (0x39) - low power mode,    1 Hz self-refresh. Image is retained.
- *
- * Frame memory is preserved across the switch, so a static image can be left
- * displayed in LPM at roughly 1/32 of the refresh energy. The datasheet also
- * calls for changing the source-voltage group when switching, but the init
- * sequence already programs the voltages this panel needs, so only the mode
- * command is sent.
- *
- * Writing while in LPM can delay the visible update by up to one refresh
- * period (~1 s), so callers should switch back to HPM before drawing.
- *
- * These are NOT wrapped by u8g2; the equivalent is sending command bytes
- * directly, which is what these helpers do. */
-esp_err_t u8g2_st7305_set_low_power_mode(u8g2_st7305_t *dev);
-esp_err_t u8g2_st7305_set_high_power_mode(u8g2_st7305_t *dev);
-
 static inline u8g2_t *u8g2_st7305_get_u8g2(u8g2_st7305_t *dev)
 {
     return dev == NULL ? NULL : &dev->u8g2;
