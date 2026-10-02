@@ -1,11 +1,13 @@
 #ifndef USER_CONFIG_H
 #define USER_CONFIG_H
 
-#define RLCD_DC_PIN    GPIO_NUM_5  
-#define RLCD_CS_PIN    GPIO_NUM_40
-#define RLCD_SCK_PIN   GPIO_NUM_11
-#define RLCD_MOSI_PIN  GPIO_NUM_12
-#define RLCD_RST_PIN   GPIO_NUM_41
+/* Panel pin map lives in u8g2_st7305_default_config(), not here. */
+
+/* Panel SPI clock, Hz. 15000 bytes/frame, so this is the data floor:
+ * 24/40/80 MHz = 5.0/3.0/1.5 ms. 80 MHz corrupted the image while every driver
+ * counter stayed clean - a write-only bus cannot detect dropped bytes. 60 MHz
+ * measured the same as 40 (divider rounding). Raise only with a scope on SCK. */
+#define RLCD_SPI_CLOCK_HZ 40000000
 
 /* ST7305 panel self-refresh mode.
  * 1: after each frame is written, switch the panel to LPM (0x39, 1 Hz

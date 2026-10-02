@@ -22,6 +22,9 @@ typedef struct {
     gpio_num_t cs_io;
     gpio_num_t reset_io;
     spi_host_device_t spi_host;
+    /* Required, must be > 0; u8g2_st7305_init() rejects 0. The default config
+     * leaves it unset, so the caller must assign it (the project uses
+     * RLCD_SPI_CLOCK_HZ from main/user_config.h). */
     int clock_hz;
     uint8_t tile_buf_height;
     const u8g2_cb_t *rotation;
@@ -32,6 +35,7 @@ typedef struct {
     u8g2_t u8g2;
     spi_device_handle_t spi;
     spi_host_device_t spi_host;
+    int clock_hz;
     gpio_num_t dc_io;
     gpio_num_t cs_io;
     gpio_num_t reset_io;

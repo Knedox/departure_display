@@ -3,13 +3,13 @@
 #include <string.h>
 
 #include "esp_check.h"
+#include "driver/gpio.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_rom_sys.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#define ST7305_SPI_CLOCK_HZ 24000000
 #define ST7305_TILE_WIDTH 38
 #define ST7305_TILE_HEIGHT 50
 #define ST7305_FULL_BUFFER_HEIGHT ST7305_TILE_HEIGHT
@@ -17,28 +17,37 @@
 
 static const char *TAG = "u8g2_st7305";
 
+/* Forward declaration: the helpers below need st7305_write_cmd_data(), which is
+ * defined further down next to the other SPI primitives. */
+static esp_err_t st7305_write_cmd_data(u8g2_st7305_t *dev, uint8_t cmd, const uint8_t *data, size_t len);
+
 static const u8x8_display_info_t st7305_display_info = {
-    /* chip_enable_level = */ 0,
-    /* chip_disable_level = */ 1,
-    /* post_chip_enable_wait_ns = */ 0,
-    /* pre_chip_disable_wait_ns = */ 0,
-    /* reset_pulse_width_ms = */ 20,
-    /* post_reset_wait_ms = */ 50,
-    /* sda_setup_time_ns = */ 0,
-    /* sck_pulse_width_ns = */ 0,
-    /* sck_clock_hz = */ ST7305_SPI_CLOCK_HZ,
-    /* spi_mode = */ 0,
-    /* i2c_bus_clock_100kHz = */ 4,
-    /* data_setup_time_ns = */ 0,
-    /* write_pulse_width_ns = */ 0,
-    /* tile_width = */ ST7305_TILE_WIDTH,
-    /* tile_height = */ ST7305_TILE_HEIGHT,
-    /* default_x_offset = */ 0,
-    /* flip_mode_x_offset = */ 0,
+    .chip_enable_level = 0,
+    .chip_disable_level = 1,
+    .post_chip_enable_wait_ns = 0,
+    .pre_chip_disable_wait_ns = 0,
+    .reset_pulse_width_ms = 20,
+    .post_reset_wait_ms = 50,
+    .sda_setup_time_ns = 0,
+    .sck_pulse_width_ns = 0,
+    /* sck_clock_hz is left 0: it is an Arduino-compatibility field that nothing
+     * in u8x8 reads, and the real bus speed comes from
+     * spi_device_interface_config_t.clock_speed_hz. */
+    .sck_clock_hz = 0,
+    .spi_mode = 0,
+    .i2c_bus_clock_100kHz = 4,
+    .data_setup_time_ns = 0,
+    .write_pulse_width_ns = 0,
+    .tile_width = ST7305_TILE_WIDTH,
+    .tile_height = ST7305_TILE_HEIGHT,
+    .default_x_offset = 0,
+    .flipmode_x_offset = 0,
     /* pixel_width = */ 300,
     /* pixel_height = */ 400,
 };
 
+/* Every byte the driver pushes, from the init sequence and from each
+ * u8g2_SendBuffer() frame alike. */
 static esp_err_t st7305_spi_write(u8g2_st7305_t *dev, const uint8_t *data, size_t len)
 {
     if (len == 0) {
@@ -282,7 +291,10 @@ u8g2_st7305_config_t u8g2_st7305_default_config(void)
         .cs_io = GPIO_NUM_40,
         .reset_io = GPIO_NUM_41,
         .spi_host = SPI3_HOST,
-        .clock_hz = ST7305_SPI_CLOCK_HZ,
+        /* 0 = unset; the caller must supply config.clock_hz (the project sets it
+         * from RLCD_SPI_CLOCK_HZ in main/user_config.h). u8g2_st7305_init()
+         * rejects 0 rather than guessing a bus speed. */
+        .clock_hz = 0,
         .tile_buf_height = U8G2_ST7305_TILE_BUF_FULL,
         .rotation = U8G2_R1,
         .prefer_psram = false,
@@ -294,9 +306,12 @@ esp_err_t u8g2_st7305_init(u8g2_st7305_t *dev, const u8g2_st7305_config_t *confi
 {
     ESP_RETURN_ON_FALSE(dev != NULL, ESP_ERR_INVALID_ARG, TAG, "dev is NULL");
     ESP_RETURN_ON_FALSE(config != NULL, ESP_ERR_INVALID_ARG, TAG, "config is NULL");
+    ESP_RETURN_ON_FALSE(config->clock_hz > 0, ESP_ERR_INVALID_ARG, TAG,
+                        "config->clock_hz must be set (see RLCD_SPI_CLOCK_HZ)");
 
     memset(dev, 0, sizeof(*dev));
     dev->spi_host = config->spi_host;
+    dev->clock_hz = config->clock_hz;
     dev->dc_io = config->dc_io;
     dev->cs_io = config->cs_io;
     dev->reset_io = config->reset_io;
@@ -357,7 +372,7 @@ esp_err_t u8g2_st7305_init(u8g2_st7305_t *dev, const u8g2_st7305_config_t *confi
     }
 
     spi_device_interface_config_t devcfg = {
-        .clock_speed_hz = config->clock_hz > 0 ? config->clock_hz : ST7305_SPI_CLOCK_HZ,
+        .clock_speed_hz = dev->clock_hz,
         .mode = 0,
         .spics_io_num = -1,
         .queue_size = 1,

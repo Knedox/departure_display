@@ -273,13 +273,11 @@ u8g2_t *U8g2_InitDisplayHandle(void)
     ESP_LOGI(TAG, "=== Display Task Started ===");
 
     u8g2_st7305_config_t config = u8g2_st7305_default_config();
-    config.mosi_io = RLCD_MOSI_PIN;
-    config.sclk_io = RLCD_SCK_PIN;
-    config.dc_io = RLCD_DC_PIN;
-    config.cs_io = RLCD_CS_PIN;
-    config.reset_io = RLCD_RST_PIN;
     config.rotation = U8G2_R1;
     config.tile_buf_height = U8G2_ST7305_TILE_BUF_FULL;
+    /* Pin map comes from u8g2_st7305_default_config(); only the bus speed is
+     * overridden from user_config.h. */
+    config.clock_hz = RLCD_SPI_CLOCK_HZ;
 
     ESP_LOGI(TAG, "Initializing u8g2 display");
     ESP_ERROR_CHECK(u8g2_st7305_init(&g_u8g2_lcd, &config));
