@@ -32,6 +32,18 @@ CONFIG_ESP_WIFI_STA_DISCONNECTED_PM_ENABLE=y
 # Fewer, longer RC calibration cycles: each averages better, and the clock only
 # has to hold a 30 s sleep well enough to redraw on time.
 CONFIG_ESP32S3_RTC_CLK_CAL_CYCLES=8192
+# Task WDT idle subscription off. The idle hook feeds the WDT once when the CPU
+# goes idle, but nothing in this project subscribes a task, and with no entries
+# the driver stops the timer - which is the point. While an entry did exist, the
+# timer kept running through the 30 s sleep (peripherals are not powered down in
+# light sleep here), so it expired at its 5 s timeout and woke the chip for no
+# reason. CONFIG_ESP_TASK_WDT_EN stays on so a subscribed task would still be
+# caught; if you add one, re-check this.
+#
+# Note the two lines below are directives, not prose: sdkconfig.defaults is
+# parsed as Kconfig, where a disabled boolean is written commented out.
+# CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0 is not set
+# CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1 is not set
 
 # Power management. CONFIG_PM_ENABLE is the master switch for the whole esp_pm
 # subsystem: without it light sleep is not compiled in at all and every esp_pm_*
