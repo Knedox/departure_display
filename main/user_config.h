@@ -9,9 +9,16 @@
  * measured the same as 40 (divider rounding). Raise only with a scope on SCK. */
 #define RLCD_SPI_CLOCK_HZ 40000000
 
-/* DFS + automatic light sleep. Off until there is a measurement of the idle
- * current with it enabled; see power.cpp. */
-#define RLCD_USE_LIGHT_SLEEP 0
+/* DFS + automatic light sleep.
+ *
+ * The display task sleeps for tens of seconds between refreshes, so almost all
+ * the energy goes on powering the chip idle (~6.5 ms of display work against a
+ * 30 s interval). Tickless idle is what turns the long vTaskDelay() into a real
+ * light sleep instead of a busy wait at full clock.
+ *
+ * RST must stay driven while asleep or a glitch can wedge the panel in a state
+ * a pin reset does not recover from; see u8g2_st7305_init(). */
+#define RLCD_USE_LIGHT_SLEEP 1
 
 /* Runtime log level. WARN suppresses the per-frame INFO chatter and its UART
  * and CPU cost; raise to ESP_LOG_INFO for detail. */

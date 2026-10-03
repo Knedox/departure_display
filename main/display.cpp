@@ -327,6 +327,9 @@ void U8g2_RenderDepartureFrame(u8g2_t *u8g2)
         return;
     }
 
+    /* One calibrated ADC conversion per frame: reading per call site did two. */
+const uint8_t battery_percent = battery_get_percent();
+
     ESP_LOGI(TAG, "Updating display buffer");
     u8g2_ClearBuffer(u8g2);
     u8g2_SetDrawColor(u8g2, 1);
@@ -337,7 +340,7 @@ void U8g2_RenderDepartureFrame(u8g2_t *u8g2)
     char display_title[64];
     snprintf(display_title, sizeof(display_title), "%s", STATION_NAME);
     u8g2_DrawStr(u8g2, 10, 28, display_title);
-    ESP_LOGI(TAG, "DISPLAY REFRESH: station=%s current_time=%s battery=%u%%", display_title, current_time, battery_get_percent());
+    ESP_LOGI(TAG, "DISPLAY REFRESH: station=%s current_time=%s battery=%u%%", display_title, current_time, battery_percent);
 
     char display_clock[6];
     strlcpy(display_clock, current_time, sizeof(display_clock));
@@ -349,7 +352,7 @@ void U8g2_RenderDepartureFrame(u8g2_t *u8g2)
     int time_x = 400 - time_w - 10;
     int icon_x = time_x - icon_w - spacing + 2;
     int icon_y = 10;
-    draw_battery_icon(u8g2, icon_x, icon_y, battery_get_percent());
+    draw_battery_icon(u8g2, icon_x, icon_y, battery_percent);
     u8g2_DrawStr(u8g2, time_x, 28, display_clock);
     u8g2_DrawHLine(u8g2, 10, 32, 380);
 

@@ -153,21 +153,33 @@ static void st7305_full_init(u8g2_st7305_t *dev)
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd_data(dev, 0x35, m35, sizeof(m35)));
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd_data(dev, 0xD0, d0, sizeof(d0)));
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd(dev, 0x38));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd(dev, 0x29));
 
-    /* LPM (0x39, 1 Hz). The image is rewritten only every 30 s, so a static
-     * frame gains nothing from HPM's 32 Hz and LPM holds it at ~1/32 of the
-     * refresh energy for the whole run.
+    /* Datasheet 7.11 HPM => LPM: voltage setup on 0xC1/0xC2/0xC4/0xC5 then 0xC9,
+     * delay 20 ms, 0x39, delay 100 ms. Order and both delays are per the figure.
      *
-     * Datasheet 7.11 asks for more than this before entering LPM: re-program
-     * 0xC1/0xC2/0xC4/0xC5 with the LPM source voltages, issue 0xC9, wait 20 ms,
-     * send 0x39, wait 100 ms. The voltage table for LPM is panel-specific and
-     * is not available here, and the vendor reference (DisplayPort::RLCD_Init)
-     * does not perform the step at all - it ends 0x38, 0x29 and never uses LPM.
-     * So this runs with the HPM voltage set while in LPM mode, and without the
-     * 100 ms settling delay. Both are deliberate, and reversing either means
-     * sending 0x38 instead and restoring the voltage setup. */
+     * The voltage *values* are still the HPM set: the LPM table is panel-specific
+     * and is in neither the repo nor the figure, so this runs LPM at HPM source
+     * voltages and realises only part of the intended saving. Filling it in means
+     * replacing the c_lpm constants below - the voltage step is what distorts the
+     * image if the numbers are wrong. 0x29 comes after the mode change so the
+     * panel comes up already in LPM. */
+    const uint8_t c_lpm[] = {0x69, 0x69, 0x69, 0x69};  /* placeholder: HPM values */
+    const uint8_t c2_lpm[] = {0x19, 0x19, 0x19, 0x19}; /* placeholder: HPM values */
+    const uint8_t c4_lpm[] = {0x4B, 0x4B, 0x4B, 0x4B}; /* placeholder: HPM values */
+
+    ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd_data(dev, 0xC1, c_lpm, sizeof(c_lpm)));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd_data(dev, 0xC2, c2_lpm, sizeof(c2_lpm)));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd_data(dev, 0xC4, c4_lpm, sizeof(c4_lpm)));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd_data(dev, 0xC5, c2_lpm, sizeof(c2_lpm)));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd_data(dev, 0xC9, c9, sizeof(c9)));
+    vTaskDelay(pdMS_TO_TICKS(20));
+
+    /* LPM. A frame is rewritten only every 30 s, so HPM's 32 Hz buys nothing and
+     * LPM holds the static image far cheaper. */
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd(dev, 0x39));
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd(dev, 0x29));
 }
 
 static uint8_t u8g2_st7305_byte_cb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
@@ -354,23 +366,19 @@ esp_err_t u8g2_st7305_init(u8g2_st7305_t *dev, const u8g2_st7305_config_t *confi
         gpio_set_level(config->reset_io, 1);
     }
 
-    /* Keep the display bus driven through light sleep. PM_SLP_DISABLE_GPIO
-         * (forced by ESP_SLEEP_GPIO_RESET_WORKAROUND) otherwise floats every GPIO
-         * while asleep, and a glitch on RST can wedge the controller in a state
-         * a pin reset does not recover from - the charge-pump rails stay
-         * charged, so only removing power clears it. */
-    gpio_num_t sleep_pins[5] = {
-        config->dc_io, config->cs_io, config->mosi_io, config->sclk_io, config->reset_io
-    };
-    for (size_t i = 0; i < sizeof(sleep_pins) / sizeof(sleep_pins[0]); i++) {
-        if (sleep_pins[i] < 0) {
-            continue;
-        }
-        gpio_sleep_sel_dis(sleep_pins[i]);
-    }
-    gpio_sleep_set_pull_mode(config->cs_io, GPIO_PULLUP_ONLY);
-    gpio_sleep_set_pull_mode(config->dc_io, GPIO_PULLUP_ONLY);
+    /* Keep RST driven through light sleep; float every other bus pin.
+     *
+     * ESP_SLEEP_GPIO_RESET_WORKAROUND force-selects PM_SLP_DISABLE_GPIO, which
+     * isolates every GPIO while asleep; gpio_sleep_sel_dis() exempts one pin. RST
+     * is the one that must not float - a glitch can wedge the ST7305 in a state
+     * its charge-pump rails hold, which only removing power recovers from.
+     *
+     * DC/CS/SCK/MOSI are left isolated to give up part of the ~200-300 uA that
+     * PM_SLP_DISABLE_GPIO saves; the panel is not clocked while asleep, so nothing
+     * samples them. This partially reverts 4f6d797. If a blank panel that
+     * survives a power cycle returns, suspect a floating RST. */
     if (config->reset_io >= 0) {
+        gpio_sleep_sel_dis(config->reset_io);
         gpio_sleep_set_pull_mode(config->reset_io, GPIO_PULLUP_ONLY);
     }
 

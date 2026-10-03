@@ -20,7 +20,18 @@ CONFIG_COMPILER_OPTIMIZATION_PERF=y
 # which fits internal RAM).
 CONFIG_SPIRAM=n
 CONFIG_FATFS_LFN_HEAP=y
+# Tickless idle turns vTaskDelay() into light sleep, so this only sets how often
+# the idle hook runs. 1000 Hz is the Kconfig maximum and the IDF default; the
+# per-tick cost is negligible against a 30 s interval, and a coarser tick can
+# land inside the ~7 ms render window and split one sleep into two.
 CONFIG_FREERTOS_HZ=1000
+# The Kconfig default. Modem-sleeps the chip while the RF module is idle when the
+# station is disconnected. Only applies while the driver runs: wifi_stop()
+# releases it between fetches, so the window is the fetch, not the idle sleep.
+CONFIG_ESP_WIFI_STA_DISCONNECTED_PM_ENABLE=y
+# Fewer, longer RC calibration cycles: each averages better, and the clock only
+# has to hold a 30 s sleep well enough to redraw on time.
+CONFIG_ESP32S3_RTC_CLK_CAL_CYCLES=8192
 
 # Power management. CONFIG_PM_ENABLE is the master switch for the whole esp_pm
 # subsystem: without it light sleep is not compiled in at all and every esp_pm_*
