@@ -11,10 +11,11 @@ lets a single battery charge last about a month.
 
 ## What it does
 
-- Fetches the next departures for a station from the public
+- Fetches up to 20 departures for a station from the public
   [transport.opendata.ch](https://transport.opendata.ch) `stationboard` API every 5 minutes.
-- Displays up to eight rows, each with the line number in a badge, the destination, and a
-  countdown to departure in minutes (`now` once under 30 seconds).
+- Renders them in rows, each with the line number in a badge, the destination, and a countdown
+  to departure in minutes (`now` once under 30 seconds). Fewer rows than that fit on the
+  panel: the render loop stops once the next row would fall off the bottom.
 - Shows the current wall clock of the data source's timezone and a battery gauge in the
   header, plus the station name.
 - Sorts and filters departures so already-departed services are dropped and the list stays
@@ -27,7 +28,7 @@ lets a single battery charge last about a month.
 | --- | --- |
 | Board | Waveshare ESP32-S3-RLCD-4.2 (ESP32-S3, Xtensa dual-core, 240 MHz) |
 | Display | 4.2" reflective LCD (RLCD), 400x300 px, ST7305 controller, SPI |
-| Flash | 16 MB, QIO |
+| Flash | 16 MB. Configured QIO in `sdkconfig.defaults`, but the active `sdkconfig` resolves to DIO (`CONFIG_ESPTOOLPY_FLASHMODE="dio"`) |
 | PSRAM | Disabled on purpose - an idle 80 MHz octal PSRAM interface costs several mA and the only large allocation (the ~15 KB framebuffer) fits internal RAM |
 | Regulator | TI TPS63020 buck-boost; its PS/SYNC pin must be pulled low for low-power mode (see below) |
 | Battery sense | On-board battery divider on GPIO4 / ADC1 channel 3 (3.0 V = empty, 4.12 V = full) |
@@ -45,7 +46,10 @@ Configured in `main/user_config.h`:
 | MOSI | 12 |
 | RST | 41 |
 
-The panel is driven over SPI3 at 24 MHz in `U8G2_R1` rotation.
+The panel is driven over SPI3 at 40 MHz (`RLCD_SPI_CLOCK_HZ`) in `U8G2_R1` rotation. 24/40/80 MHz
+would give 5.0/3.0/1.5 ms per frame, but 80 MHz corrupted the image while every driver counter
+stayed clean - a write-only bus cannot detect dropped bytes - and 60 MHz measured the same as
+40 due to divider rounding.
 
 ### Low-power regulator requirement
 
@@ -74,15 +78,32 @@ The firmware is tuned for long battery life:
   (`main/power.cpp`). This requires `CONFIG_PM_ENABLE` and `CONFIG_FREERTOS_USE_TICKLESS_IDLE`,
   which are set in `sdkconfig.defaults`; without them IDF links the whole `esp_pm` API as
   no-op stubs and the device would run at a fixed 160 MHz.
-- The panel is switched to LPM (1 Hz self-refresh, command `0x39`) after each frame, so a
-  static image is held at roughly 1/32 of the high-power (32 Hz) refresh energy. The image
-  still requires the panel to be powered and self-refreshing; it is lost if the supply is
-  removed.
+- The panel is switched to LPM (1 Hz self-refresh, command `0x39`) during initialisation, so a
+  static image is held far more cheaply than the high-power (32 Hz) refresh. The image still
+  requires the panel to be powered and self-refreshing; it is lost if the supply is removed.
+  Initialisation follows datasheet 7.11: voltage setup on `0xC1`/`0xC2`/`0xC4`/`0xC5` with
+  `0xC9`, 20 ms, `0x39`, 100 ms. The LPM *voltage values* are still the HPM set, because that
+  table is panel-specific and is not in the datasheet figure - so the panel runs LPM at HPM
+  source voltages and only part of the intended saving is realised. The values live in the
+  `c_lpm`/`c2_lpm`/`c4_lpm` constants in `u8g2_st7305_init()`; see the comment there.
 - WiFi TX power is capped at 10 dBm instead of the 20 dBm default.
 - The WiFi station is stopped after every fetch and brought back up on the next refresh.
   Modem sleep (`WIFI_PS_MAX_MODEM`) is asserted per association and cleared in `wifi_stop()`,
   because it holds `ESP_PM_APB_FREQ_MAX` and would otherwise pin the clock at maximum.
 - Bluetooth/WiFi/MDNS/other components are trimmed out via `sdkconfig`.
+- The task watchdog's idle subscription is off
+  (`CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0/1`). Nothing here subscribes a task, and with no
+  entries the driver stops the timer. While an entry existed the timer kept counting through
+  the 30 s sleep and woke the chip at its 5 s timeout several times per refresh, for no benefit.
+  `CONFIG_ESP_TASK_WDT_EN` stays on so an explicitly subscribed task would still be caught.
+- Fewer, longer RTC RC calibration cycles (`CONFIG_ESP32S3_RTC_CLK_CAL_CYCLES=8192`) and a
+  1000 Hz tick. The tick rate is the Kconfig maximum and does not matter much under tickless
+  idle; it is only high so a tick cannot land inside the ~7 ms render window and split one
+  sleep into two.
+- During light sleep only `RST` is kept driven; `DC`/`CS`/`SCK`/`MOSI` float, giving up part of
+  the 200-300 uA that `PM_SLP_DISABLE_GPIO` exists to save. `RST` must stay driven because a
+  glitch on a floating `RST` can wedge the ST7305 in a state its charge-pump rails hold, which
+  only removing power recovers from.
 
 ### Source layout
 
@@ -150,7 +171,10 @@ const char *STATION_NAME = "Glattpark";
 
 Tuning knobs live in `main/user_config.h`:
 
-- `RLCD_USE_PANEL_LPM` - enable the 1 Hz self-refresh low-power panel mode.
+- `RLCD_SPI_CLOCK_HZ` - panel SPI clock in Hz (40000000). Raise only with a scope on SCK.
+- `RLCD_USE_LIGHT_SLEEP` - DFS plus automatic light sleep. When 0 the CPU idles at full clock
+  between refreshes; `configure_power_management()` returns early and the `sdkconfig` power
+  options become inert.
 - `RLCD_LOG_LEVEL` - runtime log level; `ESP_LOG_WARN` keeps the per-row chatter out of the
   UART.
 - `REDUCED_WIFI_TX_POWER_QUARTER_DBM` - WiFi TX power limit in quarter-dBm (40 = 10 dBm).
