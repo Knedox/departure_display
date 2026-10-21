@@ -28,4 +28,31 @@
  * 40 = 10 dBm, vs the 80 default. Raise towards 80 if the link is unreliable. */
 #define REDUCED_WIFI_TX_POWER_QUARTER_DBM 40
 
+/* Night-time deep sleep.
+ *
+ * The device deep sleeps in chunks through the night window and wakes up
+ * roughly hourly to re-read the clock, so a single long sleep is not needed
+ * and a wrong sleep length cannot strand the device for hours.
+ *
+ * The window is expressed in the local time of the data source (Zurich), taken
+ * from the timezone offset the API reports in its ISO timestamps. The window
+ * may wrap midnight, which is the default: 19:00 -> 07:00.
+ *
+ * The chip reboots on every wake, so the display is re-initialised and the
+ * clock is re-fetched from the API each time. Nothing is retained across the
+ * sleep. */
+#define RLCD_NIGHT_SLEEP_ENABLED 1
+
+/* Start of the night window, in local hours (0..23). */
+#define RLCD_NIGHT_SLEEP_START_HOUR 19
+
+/* End of the night window, in local hours (0..23). */
+#define RLCD_NIGHT_SLEEP_END_HOUR 7
+
+/* Length of one deep sleep chunk. The chip wakes up after this long, re-reads
+ * the clock and decides again, so the real sleep is a series of chunks. The
+ * last chunk of the night is trimmed to land exactly on the end of the
+ * window. */
+#define RLCD_NIGHT_SLEEP_MAX_SLEEP_SECONDS (60 * 60)
+
 #endif

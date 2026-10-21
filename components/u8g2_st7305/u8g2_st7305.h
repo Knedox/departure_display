@@ -54,6 +54,11 @@ u8g2_st7305_config_t u8g2_st7305_default_config(void);
 esp_err_t u8g2_st7305_init(u8g2_st7305_t *dev, const u8g2_st7305_config_t *config);
 void u8g2_st7305_deinit(u8g2_st7305_t *dev);
 
+/* Put the panel into its lowest-power state: 0x10 (Sleep In) followed by a
+ * hardware reset that is left asserted. The panel is off until the next
+ * u8g2_st7305_init() drives RST high and re-initialises it. */
+esp_err_t u8g2_st7305_power_down(u8g2_st7305_t *dev);
+
 /* Bytes in one packed frame: 300x400 px at 8 px/byte. */
 #define ST7305_FULL_FRAME_BYTES 15000
 

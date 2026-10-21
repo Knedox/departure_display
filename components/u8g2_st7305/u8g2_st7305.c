@@ -182,6 +182,56 @@ static void st7305_full_init(u8g2_st7305_t *dev)
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd(dev, 0x29));
 }
 
+/* Put the panel into its lowest-power state before the host goes to sleep.
+ *
+ * Two steps, in this order:
+ *
+ *  1. 0x10 (Sleep In) - the panel stops refreshing and drops into its sleep
+ *     current. The panel is still alive at this point and still holds its
+ *     charge-pump rails.
+ *
+ *  2. The hardware reset line is pulled low. The ST7305 treats a low RST as a
+ *     hardware reset, which shuts the controller down completely and
+ *     discharges the rails. This is what "reset the display" means here: the
+ *     panel is not merely blanked, it is off.
+ *
+ * The reset line is driven low here but is not held: nothing in this driver
+ * claims a GPIO hold across the sleep. Once the host enters deep sleep the
+ * pads return to their reset state and RST floats for the rest of the sleep.
+ * The driver warns elsewhere that a glitch on a floating RST can wedge the
+ * ST7305 in a state its charge-pump rails hold, which only removing power
+ * recovers from. The panel is already off at that point, so a wedged panel
+ * costs a power cycle at worst - but it is a real risk and worth a hardware
+ * test before the device is left running unattended overnight.
+ *
+ * The next u8g2_st7305_init() after a wake drives RST high again and runs the
+ * full init sequence, which brings the panel back up.
+ */
+esp_err_t u8g2_st7305_power_down(u8g2_st7305_t *dev)
+{
+    if (dev == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    /* 0x10 (Sleep In). If the panel is already in reset this fails, which is
+     * harmless: the panel is off either way. */
+    ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd(dev, 0x10));
+    vTaskDelay(pdMS_TO_TICKS(120));
+
+    /* Hardware reset. The panel is now off. */
+    if (dev->reset_io >= 0) {
+        gpio_set_level(dev->reset_io, 0);
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+
+    /* Deselect the panel and park the bus lines, so nothing floats on the
+     * panel side. CS high is the idle state of the SPI interface. */
+    gpio_set_level(dev->cs_io, 1);
+    gpio_set_level(dev->dc_io, 1);
+
+    return ESP_OK;
+}
+
 static uint8_t u8g2_st7305_byte_cb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
 {
     u8g2_st7305_t *dev = (u8g2_st7305_t *)u8x8_GetUserPtr(u8x8);

@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "departures_parser.cpp" "power.cpp" "display.cpp" "departures_api.cpp" "wifi_manager.cpp" "main.cpp"
+    SRCS "night_sleep.cpp" "departures_parser.cpp" "power.cpp" "display.cpp" "departures_api.cpp" "wifi_manager.cpp" "main.cpp"
     REQUIRES
         esp_timer
         u8g2_st7305

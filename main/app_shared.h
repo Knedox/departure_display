@@ -68,3 +68,14 @@ u8g2_t *U8g2_InitDisplayHandle(void);
 void U8g2_RefreshDisplayState(uint64_t now_us);
 void U8g2_RenderDepartureFrame(u8g2_t *u8g2);
 void configure_power_management(void);
+
+/* Night-time deep sleep. night_sleep_seconds_until_wake() returns the number
+ * of seconds the chip should sleep, or -1 when it should stay awake. The
+ * decision needs a valid wall clock, so it returns -1 until the first
+ * successful fetch has anchored the time. */
+int64_t night_sleep_seconds_until_wake(void);
+void night_sleep_enter(int64_t sleep_seconds);
+
+/* Put the panel into its lowest-power state (Sleep In, then hardware reset
+ * asserted). Called by night_sleep_enter() before the chip goes to sleep. */
+void U8g2_PowerDownDisplay(void);

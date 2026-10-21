@@ -28,6 +28,21 @@ static void U8g2_Task(void *arg)
         uint64_t now_us = esp_timer_get_time();
         U8g2_RefreshDisplayState(now_us);
         U8g2_RenderDepartureFrame(u8g2);
+
+        // Night window: the chip goes into deep sleep instead of idling. The
+        // frame above is drawn first, then night_sleep_enter() switches the
+        // panel off before the chip sleeps.
+        //
+        // The decision needs a valid wall clock, which only exists once a
+        // fetch has succeeded. Until then the device stays awake and keeps
+        // retrying, which is the right failure mode: a device that cannot
+        // tell the time must not blind itself for hours.
+        int64_t sleep_seconds = night_sleep_seconds_until_wake();
+        if (sleep_seconds > 0) {
+            night_sleep_enter(sleep_seconds);
+            // Only reached if the deep sleep was rejected.
+        }
+
         vTaskDelay(pdMS_TO_TICKS(DISPLAY_REFRESH_INTERVAL_SECONDS * 1000));
     }
 }

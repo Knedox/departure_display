@@ -268,6 +268,25 @@ static void sort_departures_for_display(void)
     }
 }
 
+/* Put the panel into its lowest-power state before the chip sleeps.
+ *
+ * The panel stays powered from the battery through the deep sleep, so this is
+ * what actually removes the display's power draw during the night. The driver
+ * sends Sleep In and then asserts the hardware reset line; see
+ * u8g2_st7305_power_down() for the details.
+ *
+ * Nothing is held across the sleep: the GPIO pads are left to their reset
+ * state, and the panel is brought back up by the next u8g2_st7305_init() after
+ * the wake. */
+void U8g2_PowerDownDisplay(void)
+{
+    ESP_LOGI(TAG, "Powering the panel down before deep sleep");
+    esp_err_t err = u8g2_st7305_power_down(&g_u8g2_lcd);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "u8g2_st7305_power_down failed: %s", esp_err_to_name(err));
+    }
+}
+
 u8g2_t *U8g2_InitDisplayHandle(void)
 {
     ESP_LOGI(TAG, "=== Display Task Started ===");
