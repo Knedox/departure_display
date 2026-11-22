@@ -17,8 +17,7 @@
 
 static const char *TAG = "u8g2_st7305";
 
-/* Forward declaration: the helpers below need st7305_write_cmd_data(), which is
- * defined further down next to the other SPI primitives. */
+/* Forward declaration: helpers below need st7305_write_cmd_data(). */
 static esp_err_t st7305_write_cmd_data(u8g2_st7305_t *dev, uint8_t cmd, const uint8_t *data, size_t len);
 
 static const u8x8_display_info_t st7305_display_info = {
@@ -30,9 +29,7 @@ static const u8x8_display_info_t st7305_display_info = {
     .post_reset_wait_ms = 50,
     .sda_setup_time_ns = 0,
     .sck_pulse_width_ns = 0,
-    /* sck_clock_hz is left 0: it is an Arduino-compatibility field that nothing
-     * in u8x8 reads, and the real bus speed comes from
-     * spi_device_interface_config_t.clock_speed_hz. */
+    /* Nothing in u8x8 reads this; the real speed is devcfg.clock_speed_hz. */
     .sck_clock_hz = 0,
     .spi_mode = 0,
     .i2c_bus_clock_100kHz = 4,
@@ -46,8 +43,7 @@ static const u8x8_display_info_t st7305_display_info = {
     /* pixel_height = */ 400,
 };
 
-/* Every byte the driver pushes, from the init sequence and from each
- * u8g2_SendBuffer() frame alike. */
+/* Every byte pushed, both init and frames. */
 static esp_err_t st7305_spi_write(u8g2_st7305_t *dev, const uint8_t *data, size_t len)
 {
     if (len == 0) {
@@ -139,8 +135,7 @@ static void st7305_full_init(u8g2_st7305_t *dev)
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd_data(dev, 0xB7, b7, sizeof(b7)));
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd_data(dev, 0xB0, b0, sizeof(b0)));
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd(dev, 0x11));
-    /* 200 ms per the vendor reference (DisplayPort::RLCD_Init); several ST7305
- * examples use 120 ms. */
+    /* 200 ms per the vendor reference; several examples use 120 ms. */
     vTaskDelay(pdMS_TO_TICKS(200));
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd_data(dev, 0xC9, c9, sizeof(c9)));
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd_data(dev, 0x36, m36, sizeof(m36)));
@@ -154,15 +149,7 @@ static void st7305_full_init(u8g2_st7305_t *dev)
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd_data(dev, 0xD0, d0, sizeof(d0)));
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd(dev, 0x38));
 
-    /* Datasheet 7.11 HPM => LPM: voltage setup on 0xC1/0xC2/0xC4/0xC5 then 0xC9,
-     * delay 20 ms, 0x39, delay 100 ms. Order and both delays are per the figure.
-     *
-     * The voltage *values* are still the HPM set: the LPM table is panel-specific
-     * and is in neither the repo nor the figure, so this runs LPM at HPM source
-     * voltages and realises only part of the intended saving. Filling it in means
-     * replacing the c_lpm constants below - the voltage step is what distorts the
-     * image if the numbers are wrong. 0x29 comes after the mode change so the
-     * panel comes up already in LPM. */
+    /* HPM -> LPM (datasheet 7.11); LPM voltages are panel-specific, HPM values reused. */
     const uint8_t c_lpm[] = {0x69, 0x69, 0x69, 0x69};  /* placeholder: HPM values */
     const uint8_t c2_lpm[] = {0x19, 0x19, 0x19, 0x19}; /* placeholder: HPM values */
     const uint8_t c4_lpm[] = {0x4B, 0x4B, 0x4B, 0x4B}; /* placeholder: HPM values */
@@ -174,47 +161,21 @@ static void st7305_full_init(u8g2_st7305_t *dev)
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd_data(dev, 0xC9, c9, sizeof(c9)));
     vTaskDelay(pdMS_TO_TICKS(20));
 
-    /* LPM. A frame is rewritten only every 30 s, so HPM's 32 Hz buys nothing and
-     * LPM holds the static image far cheaper. */
+    /* LPM: a frame is rewritten every 30 s, so HPM's 32 Hz buys nothing. */
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd(dev, 0x39));
     vTaskDelay(pdMS_TO_TICKS(100));
 
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd(dev, 0x29));
 }
 
-/* Put the panel into its lowest-power state before the host goes to sleep.
- *
- * Two steps, in this order:
- *
- *  1. 0x10 (Sleep In) - the panel stops refreshing and drops into its sleep
- *     current. The panel is still alive at this point and still holds its
- *     charge-pump rails.
- *
- *  2. The hardware reset line is pulled low. The ST7305 treats a low RST as a
- *     hardware reset, which shuts the controller down completely and
- *     discharges the rails. This is what "reset the display" means here: the
- *     panel is not merely blanked, it is off.
- *
- * The reset line is driven low here but is not held: nothing in this driver
- * claims a GPIO hold across the sleep. Once the host enters deep sleep the
- * pads return to their reset state and RST floats for the rest of the sleep.
- * The driver warns elsewhere that a glitch on a floating RST can wedge the
- * ST7305 in a state its charge-pump rails hold, which only removing power
- * recovers from. The panel is already off at that point, so a wedged panel
- * costs a power cycle at worst - but it is a real risk and worth a hardware
- * test before the device is left running unattended overnight.
- *
- * The next u8g2_st7305_init() after a wake drives RST high again and runs the
- * full init sequence, which brings the panel back up.
- */
+/* Sleep In (0x10) then assert RST to shut down; init restores the panel. */
 esp_err_t u8g2_st7305_power_down(u8g2_st7305_t *dev)
 {
     if (dev == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    /* 0x10 (Sleep In). If the panel is already in reset this fails, which is
-     * harmless: the panel is off either way. */
+    /* Two steps: Sleep In (0x10), then assert RST to shut the rails down. */
     ESP_ERROR_CHECK_WITHOUT_ABORT(st7305_write_cmd(dev, 0x10));
     vTaskDelay(pdMS_TO_TICKS(120));
 
@@ -224,8 +185,7 @@ esp_err_t u8g2_st7305_power_down(u8g2_st7305_t *dev)
         vTaskDelay(pdMS_TO_TICKS(20));
     }
 
-    /* Deselect the panel and park the bus lines, so nothing floats on the
-     * panel side. CS high is the idle state of the SPI interface. */
+    /* Deselect and park the bus lines so nothing floats on the panel side. */
     gpio_set_level(dev->cs_io, 1);
     gpio_set_level(dev->dc_io, 1);
 
@@ -308,30 +268,21 @@ static uint8_t u8g2_st7305_display_cb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int
         uint8_t y_pos = tile->y_pos;
         uint8_t x_pos = tile->x_pos;
 
-        /* The window spans the whole panel (0x2A: 0x12..0x2A = 25 groups of 12 px =
-         * 300 columns; 0x2B: 0x00..0xC7 = 200 addresses of 2 px = 400 rows), so
-         * every tile row packs to the same width and one window can be set at
-         * the end instead of per tile row: 150 SPI transactions/frame -> 3,
-         * 17674 us -> 9218 us at 24 MHz. */
+        /* Window spans the panel, so pack every tile row then send one 0x2C. */
         const int send_cnt = 75;                       /* 25 groups * 3 */
         const int bytes_per_row_group = send_cnt * 4;  /* 4 sub-rows */
 
         uint8_t *row_base = tile->tile_ptr - ((uint16_t)x_pos * 8U);
         uint8_t *dst = dev->frame_buf + (size_t)y_pos * bytes_per_row_group;
 
-        /* 4 columns x 4 sub-rows -> 1 byte. Largest CPU cost in a frame (~3288 us of
-         * ~6558 us at 40 MHz, vs ~3172 us SPI). The table beats the equivalent
-         * arithmetic (8 shifts + 8 ORs) by 1815 us/frame: the arithmetic
-         * accumulates into one register, a serial chain, while the 16 loads
-         * issue in parallel. Both were proved bit-identical. */
+        /* 4 columns x 4 sub-rows -> 1 byte via a table (faster than shifts+ORs). */
         static const uint8_t st_lut[4][4] = {
             {0x00, 0x80, 0x40, 0xC0},
             {0x00, 0x20, 0x10, 0x30},
             {0x00, 0x08, 0x04, 0x0C},
             {0x00, 0x02, 0x01, 0x03},
         };
-        /* Reads row_base[0..299] exactly; `col <= 299` with `col += 4` used to
-         * overrun by three bytes. */
+        /* Reads row_base[0..299] exactly; do not enlarge the loop bound. */
         for (int sr = 0; sr < 4; sr++) {
             const int shift = sr * 2;
             uint8_t *out = dst + sr * send_cnt;
@@ -374,9 +325,7 @@ u8g2_st7305_config_t u8g2_st7305_default_config(void)
         .cs_io = GPIO_NUM_40,
         .reset_io = GPIO_NUM_41,
         .spi_host = SPI3_HOST,
-        /* 0 = unset; the caller must supply config.clock_hz (the project sets it
-         * from RLCD_SPI_CLOCK_HZ in main/user_config.h). u8g2_st7305_init()
-         * rejects 0 rather than guessing a bus speed. */
+        /* 0 = unset; the caller must supply clock_hz (RLCD_SPI_CLOCK_HZ). */
         .clock_hz = 0,
         .tile_buf_height = U8G2_ST7305_TILE_BUF_FULL,
         .rotation = U8G2_R1,
@@ -416,17 +365,7 @@ esp_err_t u8g2_st7305_init(u8g2_st7305_t *dev, const u8g2_st7305_config_t *confi
         gpio_set_level(config->reset_io, 1);
     }
 
-    /* Keep RST driven through light sleep; float every other bus pin.
-     *
-     * ESP_SLEEP_GPIO_RESET_WORKAROUND force-selects PM_SLP_DISABLE_GPIO, which
-     * isolates every GPIO while asleep; gpio_sleep_sel_dis() exempts one pin. RST
-     * is the one that must not float - a glitch can wedge the ST7305 in a state
-     * its charge-pump rails hold, which only removing power recovers from.
-     *
-     * DC/CS/SCK/MOSI are left isolated to give up part of the ~200-300 uA that
-     * PM_SLP_DISABLE_GPIO saves; the panel is not clocked while asleep, so nothing
-     * samples them. This partially reverts 4f6d797. If a blank panel that
-     * survives a power cycle returns, suspect a floating RST. */
+    /* Keep RST driven through light sleep; float the other bus pins. */
     if (config->reset_io >= 0) {
         gpio_sleep_sel_dis(config->reset_io);
         gpio_sleep_set_pull_mode(config->reset_io, GPIO_PULLUP_ONLY);

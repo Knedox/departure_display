@@ -1,22 +1,15 @@
 #include "app_shared.h"
 
 static constexpr uint64_t WIFI_FETCH_INTERVAL_US = 5ULL * 60ULL * 1000000ULL;
-// Departures closer than this are shown as "now". This is half of MINUTE_SECONDS:
-// with round-half-up the "1" bucket starts at 30 s, so ending "now" at the same
-// point keeps the transition continuous (no 1-minute jump at the boundary).
+// "now" ends where the 1-minute bucket starts, keeping the transition continuous.
 static constexpr int NOW_THRESHOLD_SECONDS = 30;
-// Width of one displayed minute, and the half-width used for rounding.
 static constexpr int MINUTE_SECONDS = 60;
 static constexpr int MINUTE_ROUNDING_SECONDS = MINUTE_SECONDS / 2;
 
-// Row layout. The logical drawing surface is 400 wide x 300 tall: for U8G2_R1
-// u8g2 swaps the panel's native dimensions, giving height = pixel_width = 300
-// (u8g2_setup.c:236-237). Rows begin below the header and advance by ROW_PITCH.
-// MAX_DEPARTURES may exceed what fits, so the render loop stops once the next
-// row would fall off the panel instead of drawing the surplus off-screen.
+// Logical surface is 400x300 (U8G2_R1 swaps native dims); rows stop at the panel edge.
 static constexpr int ROW_TOP_Y = 60;
 static constexpr int ROW_PITCH = 30;
-static constexpr int ROW_LAST_BASELINE_Y = 270;  // bottom edge minus one pitch
+static constexpr int ROW_LAST_BASELINE_Y = 270;
 
 u8g2_st7305_t g_u8g2_lcd;
 static adc_cali_handle_t g_adc_cali_handle = nullptr;
@@ -30,8 +23,7 @@ static void update_current_time_from_epoch(void)
         return;
     }
 
-    // Render the wall clock of the data source's timezone so it lines up with the
-    // departure times, which are rendered the same way.
+    // Departure times are rendered in the data source's timezone too.
     int64_t display_epoch_seconds = current_epoch_seconds + current_timezone_offset_seconds;
     time_t display_epoch = static_cast<time_t>(display_epoch_seconds);
     struct tm wall_tm = {};
@@ -46,9 +38,7 @@ static void advance_current_epoch_time(uint64_t now_us)
         return;
     }
 
-    // Only the current monotonic time is a valid reference here: last_clock_update_us
-    // is deliberately set ahead of it (to the moment the fetch completed) so the
-    // time spent inside the HTTP request is not counted twice.
+    // last_clock_update_us is set to the fetch completion time, so only measure from here.
     if (now_us < last_clock_update_us) {
         return;
     }
@@ -268,16 +258,7 @@ static void sort_departures_for_display(void)
     }
 }
 
-/* Put the panel into its lowest-power state before the chip sleeps.
- *
- * The panel stays powered from the battery through the deep sleep, so this is
- * what actually removes the display's power draw during the night. The driver
- * sends Sleep In and then asserts the hardware reset line; see
- * u8g2_st7305_power_down() for the details.
- *
- * Nothing is held across the sleep: the GPIO pads are left to their reset
- * state, and the panel is brought back up by the next u8g2_st7305_init() after
- * the wake. */
+/* Sleep In, then assert RST; the next init reinitialises the panel. */
 void U8g2_PowerDownDisplay(void)
 {
     ESP_LOGI(TAG, "Powering the panel down before deep sleep");
@@ -294,8 +275,6 @@ u8g2_t *U8g2_InitDisplayHandle(void)
     u8g2_st7305_config_t config = u8g2_st7305_default_config();
     config.rotation = U8G2_R1;
     config.tile_buf_height = U8G2_ST7305_TILE_BUF_FULL;
-    /* Pin map comes from u8g2_st7305_default_config(); only the bus speed is
-     * overridden from user_config.h. */
     config.clock_hz = RLCD_SPI_CLOCK_HZ;
 
     ESP_LOGI(TAG, "Initializing u8g2 display");
@@ -323,8 +302,7 @@ void U8g2_RefreshDisplayState(uint64_t now_us)
         ESP_LOGI(TAG, "Fetching live departure data (WiFi refresh interval reached)");
         bool updated = fetch_departures();
         if (updated) {
-            // Only arm the interval after a real update, otherwise a failed fetch
-            // would suppress retries for the whole refresh period.
+            // Only arm the interval after a real update, so a failed fetch retries next cycle.
             last_wifi_fetch_us = esp_timer_get_time();
             last_clock_update_us = last_wifi_fetch_us;
             update_current_time_from_epoch();
@@ -346,8 +324,8 @@ void U8g2_RenderDepartureFrame(u8g2_t *u8g2)
         return;
     }
 
-    /* One calibrated ADC conversion per frame: reading per call site did two. */
-const uint8_t battery_percent = battery_get_percent();
+    /* One calibrated ADC conversion per frame. */
+    const uint8_t battery_percent = battery_get_percent();
 
     ESP_LOGI(TAG, "Updating display buffer");
     u8g2_ClearBuffer(u8g2);
@@ -380,8 +358,6 @@ const uint8_t battery_percent = battery_get_percent();
     int visible_rows = 0;
     for (int i = 0; i < num_departures; i++) {
         if (y > ROW_LAST_BASELINE_Y) {
-            // No room left on the panel; the remaining departures stay parsed
-            // and sorted but are not drawn.
             break;
         }
         char rendered_time[16];
@@ -403,10 +379,7 @@ const uint8_t battery_percent = battery_get_percent();
         if (secs < NOW_THRESHOLD_SECONDS) {
             snprintf(rendered_time, sizeof(rendered_time), "  now");
         } else {
-            // Round to the nearest minute. This halves the worst-case rounding
-            // error compared with flooring or ceiling (30 s instead of 59 s), at
-            // the cost of occasionally reading slightly optimistic at the top of
-            // a bucket. NOW_THRESHOLD_SECONDS keeps the boundary continuous.
+            // Round to the nearest minute (worst-case error 30 s).
             int display_minutes = (secs + MINUTE_ROUNDING_SECONDS) / MINUTE_SECONDS;
             snprintf(rendered_time, sizeof(rendered_time), "  %d", display_minutes);
         }

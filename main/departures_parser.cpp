@@ -5,9 +5,7 @@
 
 static time_t utc_mktime_from_tm(struct tm *tm_value)
 {
-    // timegm() interprets the broken-down time as UTC. Do not use mktime() with
-    // setenv("TZ","UTC"): this build uses picolibc, where mktime() ignores the TZ
-    // environment variable and would apply the local offset instead.
+    // picolibc's mktime() ignores TZ, so timegm() is used for UTC.
     return timegm(tm_value);
 }
 
@@ -59,8 +57,7 @@ static bool parse_timezone_offset_from_suffix(const char *tz_part, int64_t &offs
     return true;
 }
 
-// Reports the timezone offset carried by an ISO 8601 timestamp (e.g. "+0200"),
-// so the UI can render the wall clock of the data source's timezone.
+// Offset from an ISO 8601 timestamp suffix (e.g. "+0200").
 int64_t get_timezone_offset_seconds_from_iso(const char *iso_time)
 {
     if (iso_time == NULL) {
@@ -157,8 +154,7 @@ void parse_time_from_iso(const char *iso_time, char *hhmmss_out)
         return;
     }
 
-    // Report the timestamp in GMT, i.e. the same basis as current_time, so that
-    // the rendered time and the countdown always agree.
+    // Same GMT basis as current_time, so clock and countdown agree.
     int64_t epoch_seconds = parse_iso_utc_to_epoch(iso_time);
     if (epoch_seconds <= 0) {
         strlcpy(hhmmss_out, "--:--:--", 16);

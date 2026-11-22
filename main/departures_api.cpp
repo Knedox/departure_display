@@ -19,8 +19,7 @@ static void set_current_time_from_epoch(time_t epoch_seconds)
     }
 
     current_epoch_seconds = static_cast<int64_t>(epoch_seconds);
-    // The epoch is the GMT instant. current_time is the wall clock of the data
-    // source's timezone, so the clock lines up with the departure times.
+    // Render the wall clock in the data source's timezone.
     time_t display_epoch = epoch_seconds + static_cast<time_t>(current_timezone_offset_seconds);
     struct tm wall_tm = {};
     gmtime_r(&display_epoch, &wall_tm);
@@ -43,9 +42,7 @@ static void set_current_time_from_http_date(const char *date_header)
         return;
     }
 
-    // timegm() interprets the broken-down time as UTC. Do not use mktime() with
-    // setenv("TZ","UTC"): this build uses picolibc, where mktime() ignores the TZ
-    // environment variable and would apply the local offset instead.
+    // picolibc's mktime() ignores TZ, so timegm() is used for UTC.
     time_t epoch_seconds = timegm(&utc_tm);
 
     if (epoch_seconds != (time_t)-1) {
@@ -152,8 +149,7 @@ bool fetch_departures(void)
 
     esp_http_client_cleanup(client);
 
-    // The data is in hand, so the radio is no longer needed until the next
-    // refresh. Shut it down regardless of whether the request succeeded.
+    // Radio is no longer needed, whatever the request outcome.
     wifi_stop();
 
     return updated;

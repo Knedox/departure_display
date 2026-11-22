@@ -4,17 +4,11 @@
 void configure_power_management(void)
 {
     if (!RLCD_USE_LIGHT_SLEEP) {
-        // See RLCD_USE_LIGHT_SLEEP in user_config.h.
         ESP_LOGI(TAG, "Power management: disabled (RLCD_USE_LIGHT_SLEEP=0), CPU runs at max frequency");
         return;
     }
 
-    // The 40 MHz floor is the XTAL frequency, the lowest step the ESP32-S3
-    // offers under DFS. The display task sleeps for tens of seconds at a time
-    // between refreshes, so virtually all of the energy is burned at the floor
-    // frequency and halving it from 80 MHz roughly halves the idle CPU current.
-    // Work that needs speed (WiFi/HTTP bursts, the frame render) still ramps up
-    // to the 160 MHz ceiling on demand.
+    // 40 MHz XTAL floor halves idle CPU current; bursts ramp to 160 MHz on demand.
     esp_pm_config_t pm_config = {
         .max_freq_mhz = 160,
         .min_freq_mhz = 40,

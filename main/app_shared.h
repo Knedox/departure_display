@@ -38,10 +38,7 @@ typedef struct {
     char status[16];
 } Departure;
 
-/* Number of departures requested from the API and retained in RAM. Only the
- * subset that fits the panel is drawn; the rest are kept so the list can be
- * sorted and filtered (e.g. dropping already-departed services) without having
- * to fall back to fewer rows. */
+/* Requested from the API and kept in RAM; only matching rows are drawn. */
 #define MAX_DEPARTURES 20
 
 extern Departure departures[MAX_DEPARTURES];
@@ -51,8 +48,7 @@ extern esp_netif_t *g_wifi_sta_netif;
 extern bool static_ip_configured;
 extern char current_time[16];
 extern int64_t current_epoch_seconds;
-// Timezone offset of the data source (from the API's ISO timestamps, e.g. +0200).
-// Used only to render the wall clock; all stored times stay in GMT.
+// Data source timezone offset (e.g. +0200); stored times stay in GMT.
 extern int64_t current_timezone_offset_seconds;
 
 int64_t parse_iso_utc_to_epoch(const char *iso_time);
@@ -69,13 +65,9 @@ void U8g2_RefreshDisplayState(uint64_t now_us);
 void U8g2_RenderDepartureFrame(u8g2_t *u8g2);
 void configure_power_management(void);
 
-/* Night-time deep sleep. night_sleep_seconds_until_wake() returns the number
- * of seconds the chip should sleep, or -1 when it should stay awake. The
- * decision needs a valid wall clock, so it returns -1 until the first
- * successful fetch has anchored the time. */
+/* Seconds to sleep, or -1 to stay awake (also -1 before the clock is known). */
 int64_t night_sleep_seconds_until_wake(void);
 void night_sleep_enter(int64_t sleep_seconds);
 
-/* Put the panel into its lowest-power state (Sleep In, then hardware reset
- * asserted). Called by night_sleep_enter() before the chip goes to sleep. */
+/* Put the panel into its lowest-power state (Sleep In, then RST asserted). */
 void U8g2_PowerDownDisplay(void);

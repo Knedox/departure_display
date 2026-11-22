@@ -22,9 +22,7 @@ typedef struct {
     gpio_num_t cs_io;
     gpio_num_t reset_io;
     spi_host_device_t spi_host;
-    /* Required, must be > 0; u8g2_st7305_init() rejects 0. The default config
-     * leaves it unset, so the caller must assign it (the project uses
-     * RLCD_SPI_CLOCK_HZ from main/user_config.h). */
+    /* Required, must be > 0 (project uses RLCD_SPI_CLOCK_HZ). */
     int clock_hz;
     uint8_t tile_buf_height;
     const u8g2_cb_t *rotation;
@@ -43,7 +41,7 @@ typedef struct {
     size_t buffer_size;
     uint8_t tile_buf_height;
     bool owns_spi_bus;
-    /* Packed frame in panel order for the single 0x2C push; see DRAW_TILE. */
+    /* Packed frame in panel order for the single 0x2C push. */
     uint8_t *frame_buf;
     size_t frame_buf_size;
     /* Tiles packed since the last flush; the 50th triggers the transfer. */
@@ -54,9 +52,7 @@ u8g2_st7305_config_t u8g2_st7305_default_config(void);
 esp_err_t u8g2_st7305_init(u8g2_st7305_t *dev, const u8g2_st7305_config_t *config);
 void u8g2_st7305_deinit(u8g2_st7305_t *dev);
 
-/* Put the panel into its lowest-power state: 0x10 (Sleep In) followed by a
- * hardware reset that is left asserted. The panel is off until the next
- * u8g2_st7305_init() drives RST high and re-initialises it. */
+/* Sleep In then assert RST; the next u8g2_st7305_init() brings the panel up. */
 esp_err_t u8g2_st7305_power_down(u8g2_st7305_t *dev);
 
 /* Bytes in one packed frame: 300x400 px at 8 px/byte. */
