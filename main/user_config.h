@@ -5,7 +5,7 @@
 #define RLCD_SPI_CLOCK_HZ 40000000
 
 /* DFS + automatic light sleep (40-160 MHz). */
-#define RLCD_USE_LIGHT_SLEEP 0
+#define RLCD_USE_LIGHT_SLEEP 1
 
 /* Runtime log level; raise to ESP_LOG_INFO for per-frame detail. */
 #define RLCD_LOG_LEVEL ESP_LOG_WARN
@@ -14,7 +14,7 @@
 #define REDUCED_WIFI_TX_POWER_QUARTER_DBM 40
 
 /* Night-time deep sleep in one-hour chunks through the window (local time). */
-#define RLCD_NIGHT_SLEEP_ENABLED 0
+#define RLCD_NIGHT_SLEEP_ENABLED 1
 
 /* Window start/end in local hours (0..23); start > end wraps midnight. */
 #define RLCD_NIGHT_SLEEP_START_HOUR 19
